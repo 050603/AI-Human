@@ -12,6 +12,7 @@ class TranscriptSlice:
     start: float
     end: float
     segments: list[TranscriptSegment]
+    phase_label: str = ""
 
     @property
     def text(self) -> str:

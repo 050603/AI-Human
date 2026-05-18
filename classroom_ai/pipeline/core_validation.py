@@ -7,13 +7,16 @@ from typing import Any
 
 
 from classroom_ai.embedding.hashing import HashingEmbedder
+from classroom_ai.embedding.ollama import OllamaEmbedder
 from classroom_ai.embedding.openai_compatible import OpenAICompatibleEmbedder
 from classroom_ai.evaluation.parser import parse_evaluation_response
 from classroom_ai.evaluation.prompts import build_class_prompt
 from classroom_ai.llm.mock_local import MockLocalLLM
+from classroom_ai.llm.ollama import OllamaLLM
 from classroom_ai.llm.openai_compatible import OpenAICompatibleLLM
 from classroom_ai.schemas.transcript import Transcript
 from classroom_ai.slicing.time_slicer import slice_transcript_by_time
+from classroom_ai.slicing.phase_slicer import slice_transcript_by_phase
 from classroom_ai.uncertainty.decision import majority_vote, route_decision
 from classroom_ai.uncertainty.entropy import shannon_entropy
 from classroom_ai.uncertainty.semantic_entropy import compute_semantic_entropy
@@ -79,6 +82,11 @@ def build_llm(config: dict[str, Any]):
     provider = llm_config["provider"]
     if provider == "mock_local":
         return MockLocalLLM()
+    if provider == "ollama":
+        return OllamaLLM(
+            host=llm_config.get("host", "http://localhost:11434"),
+            model=llm_config["model"],
+        )
     if provider == "openai_compatible":
         import os
 
@@ -95,6 +103,11 @@ def build_embedder(config: dict[str, Any]):
     provider = embedding_config["provider"]
     if provider == "hashing":
         return HashingEmbedder(dimensions=int(embedding_config.get("dimensions", 256)))
+    if provider == "ollama":
+        return OllamaEmbedder(
+            host=embedding_config.get("host", "http://localhost:11434"),
+            model=embedding_config["model"],
+        )
     if provider == "openai_compatible":
         import os
 
@@ -113,27 +126,34 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
     embedder = build_embedder(config)
 
     slicing_config = config.get("slicing", {})
-    slices = slice_transcript_by_time(
-        transcript,
-        window_seconds=int(slicing_config.get("window_seconds", 600)),
-        overlap_seconds=int(slicing_config.get("overlap_seconds", 120)),
-    )
+    strategy = slicing_config.get("strategy", "time")
+    window_s = int(slicing_config.get("window_seconds", 600))
+    overlap_s = int(slicing_config.get("overlap_seconds", 120))
+
+    if strategy == "phase":
+        slices = slice_transcript_by_phase(transcript, llm, window_s, overlap_s)
+    else:
+        slices = slice_transcript_by_time(transcript, window_s, overlap_s)
 
     llm_config = config["llm"]
     uncertainty_config = config["uncertainty"]
     sample_count = int(llm_config.get("monte_carlo_samples", 20))
 
     results = []
-    for transcript_slice in slices:
+    total_slices = len(slices)
+    for slice_idx, transcript_slice in enumerate(slices):
+        print(f"[Slice {slice_idx + 1}/{total_slices}] {transcript_slice.slice_id} "
+              f"({transcript_slice.start:.0f}s-{transcript_slice.end:.0f}s) - sampling ...", flush=True)
         messages = build_class_prompt(transcript_slice)
         parsed_samples = []
-        for _ in range(sample_count):
+        for sample_i in range(sample_count):
             response = llm.generate(
                 messages=messages,
                 temperature=float(llm_config.get("temperature", 0.7)),
                 max_tokens=int(llm_config.get("max_tokens", 2048)),
             )
             parsed_samples.append(parse_evaluation_response(response.text))
+            print(f"  sample {sample_i + 1}/{sample_count} done (score={parsed_samples[-1]['score']})", flush=True)
 
         scores = [sample["score"] for sample in parsed_samples if sample["score"]]
         reasons = [sample["reason"] for sample in parsed_samples]
@@ -156,6 +176,8 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
                 "lesson_id": transcript.lesson_id,
                 "start": transcript_slice.start,
                 "end": transcript_slice.end,
+                "phase_label": transcript_slice.phase_label,
+                "segment_count": len(transcript_slice.segments),
                 "monte_carlo_samples": sample_count,
                 "score_distribution": dict(sorted(Counter(scores).items())),
                 "majority_score": majority_vote(scores),
@@ -175,6 +197,10 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
                 "samples": parsed_samples,
             }
         )
+        print(f"  -> majority={majority_vote(scores)}, "
+              f"score_entropy={score_entropy:.3f}, "
+              f"semantic_entropy={semantic_entropy:.3f}, "
+              f"decision={decision}", flush=True)
 
     return {
         "lesson_id": transcript.lesson_id,
