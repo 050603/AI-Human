@@ -1,0 +1,26 @@
+runtime:
+  mode: api
+
+slicing:
+  window_seconds: 600
+  overlap_seconds: 120
+
+llm:
+  provider: openai_compatible
+  model: gpt-4o
+  api_base: https://api.example.com/v1
+  api_key_env: LLM_API_KEY
+  temperature: 0.7
+  max_tokens: 2048
+  monte_carlo_samples: 20
+
+embedding:
+  provider: openai_compatible
+  model: text-embedding-model
+  api_base: https://api.example.com/v1
+  api_key_env: EMBEDDING_API_KEY
+
+uncertainty:
+  similarity_threshold: 0.82
+  semantic_entropy_threshold: 0.75
+  score_entropy_threshold: 0.90

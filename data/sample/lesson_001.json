@@ -1,0 +1,47 @@
+{
+  "lesson_id": "lesson_001",
+  "segments": [
+    {
+      "segment_id": "seg_0001",
+      "start": 0.0,
+      "end": 12.5,
+      "speaker": "SPEAKER_00",
+      "text": "同学们，我们先回顾一下上节课的内容。"
+    },
+    {
+      "segment_id": "seg_0002",
+      "start": 20.0,
+      "end": 38.0,
+      "speaker": "SPEAKER_00",
+      "text": "谁能解释一下这个人物为什么会做出这样的选择？"
+    },
+    {
+      "segment_id": "seg_0003",
+      "start": 42.0,
+      "end": 52.0,
+      "speaker": "SPEAKER_01",
+      "text": "我觉得是因为他想帮助朋友。"
+    },
+    {
+      "segment_id": "seg_0004",
+      "start": 54.0,
+      "end": 70.0,
+      "speaker": "SPEAKER_00",
+      "text": "很好，你能再结合文本证据分析一下吗？"
+    },
+    {
+      "segment_id": "seg_0005",
+      "start": 610.0,
+      "end": 625.0,
+      "speaker": "SPEAKER_00",
+      "text": "这个答案不对，太简单了，大家安静。"
+    },
+    {
+      "segment_id": "seg_0006",
+      "start": 640.0,
+      "end": 658.0,
+      "speaker": "SPEAKER_00",
+      "text": "我们再想一想，还有没有其他解释？"
+    }
+  ]
+}

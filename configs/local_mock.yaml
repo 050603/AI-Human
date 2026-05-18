@@ -1,0 +1,21 @@
+runtime:
+  mode: local
+
+slicing:
+  window_seconds: 600
+  overlap_seconds: 120
+
+llm:
+  provider: mock_local
+  temperature: 0.7
+  max_tokens: 1024
+  monte_carlo_samples: 20
+
+embedding:
+  provider: hashing
+  dimensions: 256
+
+uncertainty:
+  similarity_threshold: 0.82
+  semantic_entropy_threshold: 0.75
+  score_entropy_threshold: 0.90

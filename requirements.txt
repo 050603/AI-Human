@@ -1,0 +1,3 @@
+# The notebook-level core prototype runs on the Python standard library only.
+# Add local model/runtime dependencies such as torch, transformers, vllm,
+# sentence-transformers, whisperx, or pyannote.audio in deployment-specific bundles.
