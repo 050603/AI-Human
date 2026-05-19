@@ -23,3 +23,12 @@ uncertainty:
   similarity_threshold: 0.82
   semantic_entropy_threshold: 0.75
   score_entropy_threshold: 0.90
+
+debate:
+  enabled: true
+  max_rounds: 2
+  entropy_drop: 0.2
+
+phase4_rag:
+  simulate_relabel_to_4: true
+  memory_path: outputs/phase4_expert_memory.json

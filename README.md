@@ -12,6 +12,9 @@
 4. **语义聚类**：通过 Embedding 余弦相似度判断评估理由的语义等价性，使用双向蕴含边 + 连通分量（networkx / 内置图遍历）聚类。
 5. **双熵计算**：计算分数熵（评分一致性）和语义熵（理由聚类一致性）。
 6. **路由决策**：两项熵值均低于阈值 → `auto_accept`，否则 → `human_review`。
+7. **高熵辩论机制**：高熵切片先触发 2 轮内部辩论，收敛后可重新判定自动通过。
+8. **专家主动学习**：被拦截切片会生成模拟专家改判记录并写入本地记忆库，用于后续检索增强。
+9. **专家控制台数据包**：自动生成《AI 分歧诊断书》JSON。
 
 该设计利用异构模型的多样化推理发现评价中的不确定性区域，确保只有高置信度评估才自动通过。
 
@@ -58,7 +61,8 @@ AI-Human/
 ├── scripts/                          # 命令行工具
 │   ├── run_core_validation.py        # 基础管线入口
 │   ├── convert_transcript.py         # 原始转录 txt → JSON 转换
-│   └── test_transcript.py            # 完整测试运行器
+│   ├── test_transcript.py            # 完整测试运行器
+│   └── build_human_review_diagnostic.py # Phase 5 诊断书 JSON 打包
 ├── data/sample/                      # 测试数据
 │   ├── lesson_001.json               # 示例课堂转录
 │   ├── S3-4.json                     # S3-4 AI基础概念课
@@ -170,7 +174,7 @@ uncertainty:
 | 字段 | 说明 |
 |------|------|
 | `llm.ensemble_models` | 逗号分隔的模型列表，Monte Carlo 采样时轮询切换不同模型。留空则仅使用主模型 |
-| `embedding.provider` | 语义聚类的嵌入来源。推荐 `hashing`（零依赖）或 `ollama`（更精确） |
+| `embedding.provider` | 语义聚类的嵌入来源。生产环境推荐 `ollama` 或 `openai_compatible`，避免 hashing 语义失真 |
 | `uncertainty.embedding_similarity_threshold` | 两个评估理由判为语义等价的余弦相似度下限 |
 
 ### 切片策略对比
@@ -282,3 +286,14 @@ python -m pytest tests/ -v
 | 课程总结 | 5 | 0.940 | 0.940 | ✅ auto_accept |
 
 系统正确识别出 GAN 深化+互动片段是唯一存在跨模型严重分歧的区域，人工审核命中率 25%。
+
+## Phase 4/5 新增能力
+
+- **Phase 4（主动学习）**：在 `configs/local_ollama.yaml` 通过 `phase4_rag` 配置启用模拟专家改判，默认将首个 `human_review` 切片改判为 4 分并写入 `outputs/phase4_expert_memory.json`。
+- **Phase 5（控制台数据组装）**：执行以下命令可生成《AI 分歧诊断书》：
+
+```bash
+python scripts/build_human_review_diagnostic.py --result outputs/ollama_result.json --output outputs/human_review_diagnostic.json
+```
+
+- 诊断书包含：切片时间戳、分布熵、高低分理由对照、标准化 evidence。
