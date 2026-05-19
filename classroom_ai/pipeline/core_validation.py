@@ -187,7 +187,8 @@ def _evaluate_dimension(
 
     scores = [sample["score"] for sample in parsed_samples if sample["score"]]
     reasons = [sample["reason"] for sample in parsed_samples]
-    score_entropy = shannon_entropy(scores)
+    # 计算分数熵前剔除 0 分废票；有效样本不足 2 时强制触发人工
+    score_entropy = shannon_entropy(scores) if len(scores) >= 2 else 999.0
     semantic_entropy, labels, clusters = compute_semantic_entropy(reasons, judge=semantic_judge)
     sem_t, score_t = _build_dim_thresholds(uncertainty_config, dimension_key)
     decision = route_decision(
@@ -331,9 +332,14 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
                 break
         _save_phase4_memory(memory_path, expert_memory)
 
-    return {
+    payload = {
         "lesson_id": transcript.lesson_id,
         "config": config,
         "slice_count": len(results),
         "results": results,
     }
+
+    output_path = Path("outputs/stage1_result.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return payload

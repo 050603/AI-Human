@@ -138,6 +138,57 @@ python scripts/run_core_validation.py \
   --output outputs/cloud_result.json
 ```
 
+
+## 三阶段解耦流程（新增）
+
+系统现支持“Stage 1 → Stage 2 → Stage 3”解耦运行，阶段间通过 JSON 文件传递状态，且每次运行会创建独立输出目录。
+
+### Stage 1：AI 独立全量初评
+
+```bash
+python scripts/step1_auto_evaluate.py   --transcript data/sample/S5-2_full.json   --config configs/local_ollama_ensemble.yaml   --output-root outputs
+```
+
+输出：
+- `outputs/run_YYYYmmdd_HHMMSS/stage1_result.json`
+- 以及基础中间态 `outputs/stage1_result.json`（便于 Stage 2 默认读取）
+
+说明：
+- Parser 会自动剥离 markdown fenced code block（如 ```json）。
+- 分数字段支持从字符串提取（如“4分”）；无效/越界统一记为 `0`。
+- `score_entropy` 计算会剔除 `0` 分；有效票数 `<2` 时强制设为 `999.0` 触发人工审核。
+
+### Stage 2：人工靶向微干预（Streamlit）
+
+```bash
+streamlit run scripts/step2_human_review_app.py
+```
+
+操作流程：
+1. 在页面中填写/确认 `stage1_result.json` 路径并加载。
+2. 仅对 `decision == human_review` 的“切片-维度”填写专家选择。
+3. 如选择 `CUSTOM`，填写“自定义意见”。
+4. 保存生成 `stage2_human_feedback.json`。
+
+### Stage 3：AI 局部重评与终报生成
+
+```bash
+python scripts/step3_resolve_and_report.py   --config configs/local_ollama_ensemble.yaml   --stage1 outputs/run_YYYYmmdd_HHMMSS/stage1_result.json   --stage2 outputs/stage2_human_feedback.json   --output-root outputs
+```
+
+输出：
+- `outputs/run_YYYYmmdd_HHMMSS/final_report.json`
+
+说明：
+- 只会对 Stage 2 中 `needs_human_intervention=true` 的指定切片/维度进行重评。
+- 重评结果会覆盖 Stage 1 对应位置，并将该维度 `decision` 更新为 `resolved_by_human_ai_collab`。
+
+### 微干预模块（`classroom_ai/pipeline/micro_intervention.py`）
+
+- `generate_expert_question(...)`：根据高分派/低分派理由生成专家单选题（JSON）。
+- 选项中会自动追加固定项：`{"id": "CUSTOM", "text": "以上选项都不准确，我有自己的看法。"}`。
+- `resolve_with_expert_feedback(...)`：融合冲突上下文、题目及专家意见，输出最终 1-7 分、理由、能力编码。
+
 ## 配置文件说明
 
 ```yaml
