@@ -15,7 +15,7 @@ from classroom_ai.slicing.time_slicer import slice_transcript_by_time
 from classroom_ai.slicing.phase_slicer import slice_transcript_by_phase
 from classroom_ai.uncertainty.decision import majority_vote, route_decision
 from classroom_ai.uncertainty.entropy import shannon_entropy
-from classroom_ai.uncertainty.semantic_entropy import compute_semantic_entropy
+from classroom_ai.uncertainty.semantic_entropy import compute_semantic_entropy, EmbeddingEntailmentJudge
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
@@ -89,6 +89,12 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
     llm_config = config["llm"]
     llm = build_llm_from_factory(llm_config)
 
+    uncertainty_config = config["uncertainty"]
+    embedding_config = config.get("embedding", {})
+    embedder = build_embedder_from_factory(embedding_config) if embedding_config else None
+    sim_threshold = float(uncertainty_config.get("embedding_similarity_threshold", 0.75))
+    semantic_judge = EmbeddingEntailmentJudge(embedder, similarity_threshold=sim_threshold) if embedder is not None else None
+
     slicing_config = config.get("slicing", {})
     strategy = slicing_config.get("strategy", "time")
     window_s = int(slicing_config.get("window_seconds", 600))
@@ -99,7 +105,6 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
     else:
         slices = slice_transcript_by_time(transcript, window_s, overlap_s)
 
-    uncertainty_config = config["uncertainty"]
     sample_count = int(llm_config.get("monte_carlo_samples", 20))
 
     results = []
@@ -128,7 +133,7 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
         scores = [sample["score"] for sample in parsed_samples if sample["score"]]
         reasons = [sample["reason"] for sample in parsed_samples]
         score_entropy = shannon_entropy(scores)
-        semantic_entropy, labels, clusters = compute_semantic_entropy(reasons)
+        semantic_entropy, labels, clusters = compute_semantic_entropy(reasons, judge=semantic_judge)
         decision = route_decision(
             semantic_entropy=semantic_entropy,
             score_entropy=score_entropy,

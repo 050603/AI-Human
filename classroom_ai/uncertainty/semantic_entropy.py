@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -23,6 +24,43 @@ class LexicalEntailmentJudge:
 
     def equivalent(self, left: str, right: str) -> bool:
         return _normalize_text(left) == _normalize_text(right)
+
+
+class EmbeddingEntailmentJudge:
+    """Uses cosine similarity on embedding vectors to judge semantic equivalence.
+
+    Suitable for heterogeneous multi-model / multi-language outputs where lexical
+    matching is too strict.
+    """
+
+    def __init__(self, embedder, similarity_threshold: float = 0.85):
+        self._embedder = embedder
+        self._threshold = similarity_threshold
+        self._cache: dict[tuple[int, int], bool] = {}
+
+    def equivalent(self, left: str, right: str) -> bool:
+        if left == right:
+            return True
+        key = (hash(left), hash(right))
+        if key in self._cache:
+            return self._cache[key]
+        try:
+            vecs = self._embedder.encode([left, right], normalize=True)
+            sim = sum(a * b for a, b in zip(vecs[0], vecs[1]))
+            result = sim >= self._threshold
+        except Exception:
+            result = LexicalEntailmentJudge().equivalent(left, right)
+        self._cache[key] = result
+        return result
+
+
+def _cosine_similarity(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 def compute_semantic_entropy(

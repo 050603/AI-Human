@@ -1,0 +1,25 @@
+runtime:
+  mode: local
+
+slicing:
+  strategy: time
+  window_seconds: 300
+  overlap_seconds: 60
+
+llm:
+  provider: ollama
+  host: http://localhost:11434
+  model: Qwen2.5:7b-instruct-q4_K_M
+  temperature: 0.7
+  max_tokens: 2048
+  monte_carlo_samples: 10
+  ensemble_models: deepseek-r1:7b,gemma3:4b-it-q4_K_M,llama3.1:8b
+
+embedding:
+  provider: hashing
+  dimensions: 256
+
+uncertainty:
+  semantic_entropy_threshold: 1.5
+  score_entropy_threshold: 1.0
+  embedding_similarity_threshold: 0.75

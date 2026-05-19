@@ -1,0 +1,22 @@
+runtime:
+  mode: local
+
+slicing:
+  strategy: time
+  window_seconds: 300
+  overlap_seconds: 60
+
+llm:
+  provider: mock_local
+  temperature: 0.7
+  max_tokens: 2048
+  monte_carlo_samples: 20
+  ensemble_models: MockModel-A,MockModel-B,MockModel-C
+
+embedding:
+  provider: hashing
+  dimensions: 256
+
+uncertainty:
+  semantic_entropy_threshold: 1.2
+  score_entropy_threshold: 1.0
