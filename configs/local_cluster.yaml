@@ -1,0 +1,26 @@
+mode: local
+routing:
+  provider_factory: local_cluster
+llm:
+  provider: local_ollama
+  host: http://localhost:11434
+  model: qwen2.5:7b-instruct
+  ensemble_models: qwen2.5:7b-instruct,llama3:8b-instruct,glm4
+  monte_carlo_samples: 20
+  temperature: 0.7
+  max_tokens: 2048
+embedding:
+  provider: local_ollama
+  host: http://localhost:11434
+  model: bge-m3
+uncertainty:
+  semantic_entropy_threshold: 1.2
+  score_entropy_threshold: 1.0
+cluster:
+  gpus:
+    gpu0: qwen2.5:7b-instruct-tp2
+    gpu1: qwen2.5:7b-instruct-tp2
+    gpu2: llama3:8b-instruct-tp2
+    gpu3: llama3:8b-instruct-tp2
+    gpu4: deberta-v3-large-mnli+bge-m3
+    gpu5: spare
