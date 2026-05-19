@@ -2,9 +2,9 @@ runtime:
   mode: local
 
 slicing:
-  strategy: time
-  window_seconds: 300
-  overlap_seconds: 60
+  strategy: phase
+  window_seconds: 600
+  overlap_seconds: 120
 
 llm:
   provider: ollama
@@ -16,10 +16,20 @@ llm:
   ensemble_models: deepseek-r1:7b,gemma3:4b-it-q4_K_M,llama3.1:8b
 
 embedding:
-  provider: hashing
-  dimensions: 256
+  provider: ollama
+  host: http://localhost:11434
+  model: nomic-embed-text
 
 uncertainty:
   semantic_entropy_threshold: 1.5
   score_entropy_threshold: 1.0
   embedding_similarity_threshold: 0.75
+
+debate:
+  enabled: true
+  max_rounds: 2
+  entropy_drop: 0.2
+
+phase4_rag:
+  simulate_relabel_to_4: true
+  memory_path: outputs/phase4_expert_memory.json
