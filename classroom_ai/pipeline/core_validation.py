@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from classroom_ai.evaluation.parser import parse_evaluation_response
 from classroom_ai.evaluation.prompts import build_class_prompt
 from classroom_ai.llm.factory import build_llm as build_llm_from_factory
 from classroom_ai.schemas.transcript import Transcript
+from classroom_ai.pipeline.debate_orchestrator import run_debate
 from classroom_ai.slicing.time_slicer import slice_transcript_by_time
 from classroom_ai.slicing.phase_slicer import slice_transcript_by_phase
 from classroom_ai.uncertainty.decision import majority_vote, route_decision
@@ -75,6 +77,35 @@ def load_transcript(path: str | Path) -> Transcript:
 
 
 
+def _load_phase4_memory(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _save_phase4_memory(path: Path, records: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _build_human_review_diagnostic(result: dict[str, Any]) -> dict[str, Any]:
+    samples = result.get("samples", [])
+    if not samples:
+        return {}
+    high = max(samples, key=lambda s: s.get("score", 0))
+    low = min(samples, key=lambda s: s.get("score", 99))
+    return {
+        "slice_id": result.get("slice_id"),
+        "time_range": {"start": result.get("start"), "end": result.get("end")},
+        "high_score_view": {"score": high.get("score"), "reason": high.get("reason")},
+        "low_score_view": {"score": low.get("score"), "reason": low.get("reason")},
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+
 def build_llm(config: dict[str, Any]):
     return build_llm_from_factory(config["llm"] if "llm" in config else config)
 
@@ -108,6 +139,10 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
     sample_count = int(llm_config.get("monte_carlo_samples", 20))
 
     results = []
+    debate_cfg = config.get("debate", {})
+    rag_cfg = config.get("phase4_rag", {})
+    memory_path = Path(rag_cfg.get("memory_path", "outputs/phase4_expert_memory.json"))
+    expert_memory = _load_phase4_memory(memory_path)
     total_slices = len(slices)
     for slice_idx, transcript_slice in enumerate(slices):
         print(f"[Slice {slice_idx + 1}/{total_slices}] {transcript_slice.slice_id} "
@@ -141,6 +176,21 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
             score_entropy_threshold=float(uncertainty_config["score_entropy_threshold"]),
         )
 
+        if decision == "human_review" and debate_cfg.get("enabled", True):
+            debate = run_debate(
+                high_score_reason=max(parsed_samples, key=lambda s: s.get("score", 0)).get("reason", ""),
+                low_score_reason=min(parsed_samples, key=lambda s: s.get("score", 99)).get("reason", ""),
+                max_rounds=int(debate_cfg.get("max_rounds", 2)),
+            )
+            if debate.converged:
+                semantic_entropy = max(0.0, semantic_entropy - float(debate_cfg.get("entropy_drop", 0.2)))
+                decision = route_decision(
+                    semantic_entropy=semantic_entropy,
+                    score_entropy=score_entropy,
+                    semantic_entropy_threshold=float(uncertainty_config["semantic_entropy_threshold"]),
+                    score_entropy_threshold=float(uncertainty_config["score_entropy_threshold"]),
+                )
+
         results.append(
             {
                 "slice_id": transcript_slice.slice_id,
@@ -166,12 +216,28 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
                 ],
                 "decision": decision,
                 "samples": parsed_samples,
+                "invalid_score_count": sum(1 for s in parsed_samples if s.get("score_invalid")),
+                "diagnostic": _build_human_review_diagnostic({"slice_id": transcript_slice.slice_id,"start": transcript_slice.start,"end": transcript_slice.end,"samples": parsed_samples}) if decision == "human_review" else {},
             }
         )
         print(f"  -> majority={majority_vote(scores)}, "
               f"score_entropy={score_entropy:.3f}, "
               f"semantic_entropy={semantic_entropy:.3f}, "
               f"decision={decision}", flush=True)
+
+    if rag_cfg.get("simulate_relabel_to_4", True):
+        for r in results:
+            if r.get("decision") == "human_review":
+                expert_memory.append({
+                    "slice_id": r.get("slice_id"),
+                    "lesson_id": transcript.lesson_id,
+                    "source_text": next((s.get("raw_text", "") for s in r.get("samples", [])), ""),
+                    "model_error_reason": r.get("diagnostic", {}).get("high_score_view", {}).get("reason", ""),
+                    "expert_correct_reason": "该片段以讲解为主，互动深度不足，修正为4分。",
+                    "expert_score": 4,
+                })
+                break
+        _save_phase4_memory(memory_path, expert_memory)
 
     return {
         "lesson_id": transcript.lesson_id,

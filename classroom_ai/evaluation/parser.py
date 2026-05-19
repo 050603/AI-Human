@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any
 
+from classroom_ai.schemas.evidence import normalize_evidence
+
 
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 _INVALID_ESCAPE_RE = re.compile(r"\\(?![\"\\/bfnrtu])")
@@ -55,25 +57,27 @@ def parse_evaluation_response(text: str) -> dict[str, Any]:
     clean = _extract_json_block(text)
     data = _robust_json_parse(clean)
 
-    score = data.get("score", 0)
+    score_raw = data.get("score", 0)
+    score_invalid = False
     try:
-        score = int(round(float(score)))
+        score = int(round(float(score_raw)))
     except (TypeError, ValueError):
         score = 0
+        score_invalid = True
+    if score and not (1 <= score <= 7):
+        score_invalid = True
     score = max(1, min(7, score)) if score else 0
 
     reason = str(data.get("reason") or data.get("summary") or text).strip()
-    evidence = data.get("evidence", [])
-    if isinstance(evidence, str):
-        evidence = [evidence]
-    if not isinstance(evidence, list):
-        evidence = []
+    evidence = normalize_evidence(data.get("evidence", []))
 
     return {
         "dimension": str(data.get("dimension", "instructional_support")),
         "score": score,
         "reason": reason,
-        "evidence": [str(item) for item in evidence],
+        "evidence": evidence,
         "uncertainty": str(data.get("uncertainty", "")),
         "raw_text": text,
+        "score_invalid": score_invalid,
+        "score_raw": score_raw,
     }

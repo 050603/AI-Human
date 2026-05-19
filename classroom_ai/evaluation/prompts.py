@@ -16,10 +16,12 @@ def build_class_prompt(transcript_slice: TranscriptSlice, few_shot_cases: list[s
 
 要求：
 - 只依据给定文本，不要编造视频中未出现的信息。
-- 分数范围为 1-7。
+- 分数范围为 1-7，且**必须输出纯整数**（禁止小数、区间、文字分级）。
+- 输出语言必须统一为中文。
 - 每个分数必须给出文本证据。
 - 如果证据不足，请在 uncertainty 中说明。
 - 输出严格 JSON，字段为 dimension、score、reason、evidence、uncertainty。
+- evidence 必须是对象数组，格式为[{{"line_start": 整数, "line_end": 整数, "text": "证据原文"}}]。
 {cases_block}
 
 课堂片段：
