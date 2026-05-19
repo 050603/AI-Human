@@ -4,11 +4,11 @@
 
 ## 系统概述
 
-本系统对课堂转录稿进行 CLASS 量表（Instructional Support 维度）评估，核心流程如下：
+本系统已支持基于 UNESCO《学生AI能力框架》的四维评估（以人为本、AI伦理、AI技术与应用、AI系统设计），核心流程如下：
 
 1. **加载**结构化课堂转录 JSON。
 2. **切片**：支持两种策略 —— 按固定时间窗口切分，或由 LLM 自动识别课程教学阶段（导入/讲授/活动/讨论/总结）。
-3. **评估**：每个切片用可配置的模型池（ensemble_models）轮询进行 Monte Carlo 多次采样（默认 10-20 次），生成评分和理由。
+3. **评估**：每个切片按四个维度分别评估；每个维度用可配置模型池（ensemble_models）轮询进行 Monte Carlo 多次采样（默认 10-20 次），生成评分、理由和能力编码。
 4. **语义聚类**：通过 Embedding 余弦相似度判断评估理由的语义等价性，使用双向蕴含边 + 连通分量（networkx / 内置图遍历）聚类。
 5. **双熵计算**：计算分数熵（评分一致性）和语义熵（理由聚类一致性）。
 6. **路由决策**：两项熵值均低于阈值 → `auto_accept`，否则 → `human_review`。
@@ -297,3 +297,25 @@ python scripts/build_human_review_diagnostic.py --result outputs/ollama_result.j
 ```
 
 - 诊断书包含：切片时间戳、分布熵、高低分理由对照、标准化 evidence。
+
+
+### UNESCO 四维增强配置（新增）
+
+```yaml
+evaluation:
+  dimensions: human_centered,ai_ethics,ai_tech_and_app,ai_system_design
+  dimension_concurrency: 4
+
+uncertainty:
+  semantic_entropy_threshold: 1.5
+  score_entropy_threshold: 1.0
+  dimension_thresholds:
+    ai_ethics:
+      semantic_entropy_threshold: 1.2
+      score_entropy_threshold: 0.9
+
+phase4_rag:
+  enabled: true
+  retrieve_top_k: 2
+  memory_path: outputs/phase4_expert_memory.json
+```

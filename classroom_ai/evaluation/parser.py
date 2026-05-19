@@ -71,10 +71,17 @@ def parse_evaluation_response(text: str) -> dict[str, Any]:
     reason = str(data.get("reason") or data.get("summary") or text).strip()
     evidence = normalize_evidence(data.get("evidence", []))
 
+    ability_codes = data.get("ability_codes", [])
+    if isinstance(ability_codes, str):
+        ability_codes = [ability_codes]
+    if not isinstance(ability_codes, list):
+        ability_codes = []
+
     return {
         "dimension": str(data.get("dimension", "instructional_support")),
         "score": score,
         "reason": reason,
+        "ability_codes": [str(code).strip() for code in ability_codes if str(code).strip()],
         "evidence": evidence,
         "uncertainty": str(data.get("uncertainty", "")),
         "raw_text": text,
