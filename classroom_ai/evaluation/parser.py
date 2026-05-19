@@ -57,6 +57,9 @@ def parse_evaluation_response(text: str) -> dict[str, Any]:
     clean = _extract_json_block(text)
     data = _robust_json_parse(clean)
 
+    if isinstance(data, list):
+        data = data[0] if data else {}
+
     score_raw = data.get("score", 0)
     score_invalid = False
     try:
