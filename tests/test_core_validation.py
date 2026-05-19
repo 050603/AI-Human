@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from classroom_ai.embedding.hashing import HashingEmbedder
 from classroom_ai.pipeline.core_validation import run_core_validation
 from classroom_ai.schemas.transcript import Transcript
 from classroom_ai.slicing.time_slicer import slice_transcript_by_time
@@ -31,15 +30,12 @@ def test_entropy_is_zero_for_identical_values():
 
 
 def test_semantic_entropy_clusters_similar_reasons():
-    embedder = HashingEmbedder(dimensions=64)
     entropy, labels, clusters = compute_semantic_entropy(
         [
             "教师通过追问促进学生解释原因。",
             "教师通过追问促进学生解释原因。",
             "教师反馈偏控制，缺少支架。",
         ],
-        embedder=embedder,
-        similarity_threshold=0.80,
     )
 
     assert entropy > 0

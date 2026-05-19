@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from typing import Protocol
 
-from classroom_ai.embedding.base import BaseEmbedder, Vector
 from classroom_ai.uncertainty.entropy import shannon_entropy
 
 
@@ -15,73 +14,78 @@ class SemanticCluster:
     member_indices: list[int]
 
 
+class PairwiseEntailmentJudge(Protocol):
+    def equivalent(self, left: str, right: str) -> bool: ...
+
+
+class LexicalEntailmentJudge:
+    """Offline fallback judge for tests; replace with NLI/API judge in production."""
+
+    def equivalent(self, left: str, right: str) -> bool:
+        return _normalize_text(left) == _normalize_text(right)
+
+
 def compute_semantic_entropy(
     texts: list[str],
-    embedder: BaseEmbedder,
-    similarity_threshold: float = 0.82,
+    judge: PairwiseEntailmentJudge | None = None,
 ) -> tuple[float, list[int], list[SemanticCluster]]:
-    """Cluster semantically similar outputs and compute cluster-label entropy.
-
-    This intentionally uses a small greedy cosine clustering implementation so
-    the notebook prototype works in offline environments without scikit-learn.
-    """
-
     if not texts:
         return 0.0, [], []
-    embeddings = embedder.encode(texts, normalize=True)
-    labels = _greedy_cosine_clusters(embeddings, similarity_threshold)
+
+    judge = judge or LexicalEntailmentJudge()
+    edges = _build_mutual_entailment_edges(texts, judge)
+    labels = _connected_component_labels(len(texts), edges)
     entropy = shannon_entropy(labels)
+
     clusters = []
     for cluster_id in sorted(set(labels)):
-        indices = [index for index, label in enumerate(labels) if label == cluster_id]
-        clusters.append(
-            SemanticCluster(
-                cluster_id=cluster_id,
-                count=len(indices),
-                representative_text=texts[indices[0]],
-                member_indices=indices,
-            )
-        )
+        members = [idx for idx, label in enumerate(labels) if label == cluster_id]
+        clusters.append(SemanticCluster(cluster_id, len(members), texts[members[0]], members))
     return entropy, labels, clusters
 
 
-def _greedy_cosine_clusters(embeddings: list[Vector], similarity_threshold: float) -> list[int]:
-    centroids: list[Vector] = []
-    members: list[list[int]] = []
-    labels: list[int] = []
-
-    for index, vector in enumerate(embeddings):
-        if not centroids:
-            centroids.append(vector.copy())
-            members.append([index])
-            labels.append(0)
-            continue
-
-        similarities = [_dot(vector, centroid) for centroid in centroids]
-        best_cluster = max(range(len(similarities)), key=similarities.__getitem__)
-        if similarities[best_cluster] >= similarity_threshold:
-            labels.append(best_cluster)
-            members[best_cluster].append(index)
-            centroids[best_cluster] = _normalize(_mean([embeddings[item] for item in members[best_cluster]]))
-        else:
-            labels.append(len(centroids))
-            centroids.append(vector.copy())
-            members.append([index])
-
-    return labels
+def _build_mutual_entailment_edges(texts: list[str], judge: PairwiseEntailmentJudge) -> list[tuple[int, int]]:
+    edges: list[tuple[int, int]] = []
+    for i in range(len(texts)):
+        for j in range(i + 1, len(texts)):
+            if judge.equivalent(texts[i], texts[j]) and judge.equivalent(texts[j], texts[i]):
+                edges.append((i, j))
+    return edges
 
 
-def _dot(left: Vector, right: Vector) -> float:
-    return sum(a * b for a, b in zip(left, right))
+def _connected_component_labels(size: int, edges: list[tuple[int, int]]) -> list[int]:
+    try:
+        import networkx as nx
+
+        graph = nx.Graph()
+        graph.add_nodes_from(range(size))
+        graph.add_edges_from(edges)
+        labels = [0] * size
+        for component_id, nodes in enumerate(nx.connected_components(graph)):
+            for node in nodes:
+                labels[node] = component_id
+        return labels
+    except Exception:
+        neighbors = {i: set() for i in range(size)}
+        for left, right in edges:
+            neighbors[left].add(right)
+            neighbors[right].add(left)
+        labels = [-1] * size
+        component_id = 0
+        for start in range(size):
+            if labels[start] != -1:
+                continue
+            stack = [start]
+            labels[start] = component_id
+            while stack:
+                node = stack.pop()
+                for nxt in neighbors[node]:
+                    if labels[nxt] == -1:
+                        labels[nxt] = component_id
+                        stack.append(nxt)
+            component_id += 1
+        return labels
 
 
-def _mean(vectors: list[Vector]) -> Vector:
-    if not vectors:
-        return []
-    width = len(vectors[0])
-    return [sum(vector[index] for vector in vectors) / len(vectors) for index in range(width)]
-
-
-def _normalize(vector: Vector) -> Vector:
-    norm = math.sqrt(sum(value * value for value in vector))
-    return [value / norm for value in vector] if norm > 0 else vector
+def _normalize_text(text: str) -> str:
+    return "".join(ch for ch in text.lower().strip() if ch.isalnum())
