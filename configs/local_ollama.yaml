@@ -21,8 +21,8 @@ embedding:
 
 uncertainty:
   similarity_threshold: 0.82
-  semantic_entropy_threshold: 0.75
-  score_entropy_threshold: 0.90
+  semantic_entropy_threshold: 0.8
+  score_entropy_threshold: 1.2
 
 debate:
   enabled: true
