@@ -16,7 +16,16 @@ def build_llm(llm_config: dict[str, Any], env: dict[str, str] | None = None) -> 
     if provider == "mock_local":
         return MockLocalLLM()
     if provider in {"ollama", "local_ollama"}:
-        return OllamaLLM(host=llm_config.get("host", "http://localhost:11434"), model=llm_config["model"])
+        return OllamaLLM(
+            host=llm_config.get("host", "http://localhost:11434"),
+            model=llm_config["model"],
+            timeout_seconds=int(llm_config.get("timeout_seconds", 300)),
+            max_retries=int(llm_config.get("max_retries", 6)),
+            retry_backoff_base_seconds=float(llm_config.get("retry_backoff_base_seconds", 1.5)),
+            retry_jitter_seconds=float(llm_config.get("retry_jitter_seconds", 0.5)),
+            keep_alive=str(llm_config.get("keep_alive", "30m")),
+            options=llm_config.get("options", {}),
+        )
     if provider in {"openai_compatible", "litellm"}:
         api_key_env = llm_config.get("api_key_env")
         api_key = llm_config.get("api_key") or (env_map.get(api_key_env, "") if api_key_env else "")
