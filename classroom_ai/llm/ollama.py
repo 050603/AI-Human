@@ -46,7 +46,7 @@ class OllamaLLM(BaseLLM):
 
         url = f"{self.host}/api/chat"
         last_error = None
-        retryable_http_codes = {404, 408, 429, 500, 502, 503, 504}
+        retryable_http_codes = {408, 429, 500, 502, 503, 504}
 
         for attempt in range(self.max_retries):
             try:
@@ -61,6 +61,9 @@ class OllamaLLM(BaseLLM):
                 return LLMResponse(text=payload["message"]["content"], raw=payload)
             except urllib.error.HTTPError as e:
                 last_error = e
+                if e.code == 404:
+                    detail = e.read().decode("utf-8", errors="replace")
+                    raise RuntimeError(f"Ollama model not found or endpoint missing (HTTP 404): model={self.model}, host={self.host}, detail={detail[:240]}") from e
                 if e.code in retryable_http_codes:
                     wait_s = self.retry_backoff_base_seconds * (2 ** attempt) + random.uniform(0, self.retry_jitter_seconds)
                     time.sleep(wait_s)

@@ -1,10 +1,11 @@
 runtime:
   mode: local
+  show_progress: true
 
 slicing:
-  strategy: phase
-  window_seconds: 600
-  overlap_seconds: 120
+  strategy: time
+  window_seconds: 480
+  overlap_seconds: 90
 
 llm:
   provider: ollama
@@ -12,12 +13,12 @@ llm:
   model: qwen2.5:7b-instruct-q4_K_M
   temperature: 0.6
   max_tokens: 1536
-  monte_carlo_samples: 24
+  monte_carlo_samples: 12
   ensemble_models: qwen2.5:7b-instruct-q4_K_M,llama3.1:8b,deepseek-r1:7b,gemma3:4b-it-q4_K_M,mistral-nemo:12b,phi4:14b
 
   # --- 稳定性/调度优化（针对 6x TITAN 本地服务器）---
-  timeout_seconds: 420
-  max_retries: 8
+  timeout_seconds: 180
+  max_retries: 4
   retry_backoff_base_seconds: 1.2
   retry_jitter_seconds: 0.8
   keep_alive: 45m
