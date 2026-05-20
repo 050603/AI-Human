@@ -128,6 +128,23 @@ python scripts/run_core_validation.py \
   --output outputs/ensemble_result.json
 ```
 
+
+
+### 模式 E：6x TITAN 本地服务器专属（Ollama Ensemble 优化）
+
+当你在单机 6 卡（TITAN）环境中运行时，建议使用专属配置：
+
+```bash
+python scripts/run_core_validation.py \
+  --transcript data/sample/S5-2_full.json \
+  --config configs/local_ollama_titan6_ensemble.yaml \
+  --output outputs/titan6_ensemble_result.json
+```
+
+该配置针对两类问题做了专门处理：
+- **稳定性**：增强重试 + 指数退避 + 抖动，缓解高并发下 `Ollama HTTP 500`。
+- **吞吐**：扩大模型池并提高 Monte Carlo 样本数，在 6 卡上提升并行利用率与评估效率。
+
 #### 模式 D：云端 API
 
 ```bash
