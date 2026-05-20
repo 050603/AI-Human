@@ -48,8 +48,8 @@ class OllamaEmbedder(BaseEmbedder):
                     time.sleep(1 * (attempt + 1))
                     continue
                 if e.code == 404:
-                    time.sleep(2 * (attempt + 1))
-                    continue
+                    detail = e.read().decode("utf-8", errors="replace")
+                    raise RuntimeError(f"Ollama embedding model not found or endpoint missing (HTTP 404): model={self.model}, host={self.host}, detail={detail[:240]}") from e
                 raise
             except Exception:
                 last_error = None
