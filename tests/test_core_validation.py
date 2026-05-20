@@ -44,9 +44,9 @@ def test_semantic_entropy_clusters_similar_reasons():
 
 
 def test_core_validation_pipeline_runs_with_mock_local_provider():
-    result = run_core_validation("data/sample/lesson_001.json", "configs/local_mock.yaml")
+    result = run_core_validation("data/sample/S3-4.json", "configs/local_mock.yaml")
 
-    assert result["lesson_id"] == "lesson_001"
+    assert result["lesson_id"] == "S3-4"
     assert result["slice_count"] >= 1
     first = result["results"][0]
     assert first["monte_carlo_samples"] == 20

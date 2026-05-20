@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any
-from concurrent.futures import ThreadPoolExecutor
 
 
 from classroom_ai.embedding.factory import build_embedder as build_embedder_from_factory
@@ -21,6 +22,29 @@ from classroom_ai.uncertainty.decision import majority_vote, route_decision
 from classroom_ai.uncertainty.entropy import shannon_entropy
 from classroom_ai.uncertainty.semantic_entropy import compute_semantic_entropy, EmbeddingEntailmentJudge
 
+
+
+
+class ProgressTracker:
+    def __init__(self, total: int, enabled: bool = True, width: int = 28) -> None:
+        self.total = max(total, 1)
+        self.current = 0
+        self.enabled = enabled
+        self.width = width
+        self._lock = Lock()
+
+    def advance(self, step: int = 1, label: str = "") -> None:
+        if not self.enabled:
+            return
+        with self._lock:
+            self.current = min(self.total, self.current + step)
+            ratio = self.current / self.total
+            filled = int(self.width * ratio)
+            bar = "█" * filled + "-" * (self.width - filled)
+            suffix = f" | {label}" if label else ""
+            print(f"\rProgress [{bar}] {self.current}/{self.total} ({ratio * 100:5.1f}%)" + suffix, end="", flush=True)
+            if self.current >= self.total:
+                print("", flush=True)
 
 def load_config(path: str | Path) -> dict[str, Any]:
     """Load a small YAML/JSON config without mandatory third-party dependencies."""
@@ -167,6 +191,7 @@ def _evaluate_dimension(
     uncertainty_config: dict[str, Any],
     debate_cfg: dict[str, Any],
     few_shot_cases: list[str],
+    progress: ProgressTracker | None = None,
 ) -> dict[str, Any]:
     messages = build_dimension_prompt(transcript_slice, dimension_key=dimension_key, few_shot_cases=few_shot_cases)
     parsed_samples = []
@@ -184,6 +209,8 @@ def _evaluate_dimension(
             max_tokens=int(llm_config.get("max_tokens", 2048)),
         )
         parsed_samples.append(parse_evaluation_response(response.text))
+        if progress is not None:
+            progress.advance(1, label=f"{transcript_slice.slice_id}:{dimension_key}")
 
     scores = [sample["score"] for sample in parsed_samples if sample["score"]]
     reasons = [sample["reason"] for sample in parsed_samples]
@@ -278,6 +305,11 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
     expert_memory = _load_phase4_memory(memory_path)
     total_slices = len(slices)
     dimensions = config.get("evaluation", {}).get("dimensions", get_default_dimensions())
+    show_progress = bool(config.get("runtime", {}).get("show_progress", True))
+    total_steps = max(total_slices * len(dimensions) * sample_count, 1)
+    progress = ProgressTracker(total=total_steps, enabled=show_progress)
+    if show_progress:
+        print(f"Starting evaluation progress: total_steps={total_steps} (slices={total_slices}, dimensions={len(dimensions)}, samples={sample_count})", flush=True)
     for slice_idx, transcript_slice in enumerate(slices):
         print(f"[Slice {slice_idx + 1}/{total_slices}] {transcript_slice.slice_id} "
               f"({transcript_slice.start:.0f}s-{transcript_slice.end:.0f}s) - evaluating 4 dimensions...", flush=True)
@@ -297,6 +329,7 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
                 uncertainty_config=uncertainty_config,
                 debate_cfg=debate_cfg,
                 few_shot_cases=few_shot_cases,
+                progress=progress,
             )
             res["diagnostic"] = _build_human_review_diagnostic({"slice_id": transcript_slice.slice_id,"start": transcript_slice.start,"end": transcript_slice.end,"samples": res.get("samples", [])}) if res.get("decision") == "human_review" else {}
             return dimension_key, res
