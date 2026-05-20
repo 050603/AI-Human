@@ -332,14 +332,9 @@ def run_core_validation(transcript_path: str | Path, config_path: str | Path) ->
                 break
         _save_phase4_memory(memory_path, expert_memory)
 
-    payload = {
+    return {
         "lesson_id": transcript.lesson_id,
         "config": config,
         "slice_count": len(results),
         "results": results,
     }
-
-    output_path = Path("outputs/stage1_result.json")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return payload

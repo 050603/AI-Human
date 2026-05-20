@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--output-root", default="outputs")
     args = parser.parse_args()
 
-    run_id = datetime.utcnow().strftime("run_%Y%m%d_%H%M%S")
+    run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
     run_dir = Path(args.output_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -29,6 +29,7 @@ def main() -> None:
     out = run_dir / "stage1_result.json"
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Stage1 done: {out}")
+    print(f"RUN_DIR={run_dir}")
 
 
 if __name__ == "__main__":

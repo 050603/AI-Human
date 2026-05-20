@@ -9,16 +9,20 @@ import urllib.request
 from classroom_ai.embedding.base import BaseEmbedder, Vector
 
 
+_MAX_CHARS_PER_TEXT = 5000
+
+
 class OllamaEmbedder(BaseEmbedder):
     def __init__(self, host: str = "http://localhost:11434", model: str = "nomic-embed-text") -> None:
         self.host = host.rstrip("/")
         self.model = model
 
     def encode(self, texts: list[str], normalize: bool = True) -> list[Vector]:
+        truncated = [t[:_MAX_CHARS_PER_TEXT] if len(t) > _MAX_CHARS_PER_TEXT else t for t in texts]
         body = json.dumps(
             {
                 "model": self.model,
-                "input": texts,
+                "input": truncated,
                 "keep_alive": "10m",
             }
         ).encode("utf-8")
@@ -38,6 +42,11 @@ class OllamaEmbedder(BaseEmbedder):
                 break
             except urllib.error.HTTPError as e:
                 last_error = e
+                if e.code == 400 and "context length" in str(e.read().decode("utf-8", errors="replace")).lower():
+                    truncated = [t[: _MAX_CHARS_PER_TEXT // 2] if len(t) > _MAX_CHARS_PER_TEXT // 2 else t for t in texts]
+                    body = json.dumps({"model": self.model, "input": truncated, "keep_alive": "10m"}).encode("utf-8")
+                    time.sleep(1 * (attempt + 1))
+                    continue
                 if e.code == 404:
                     time.sleep(2 * (attempt + 1))
                     continue
