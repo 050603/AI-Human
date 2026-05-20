@@ -1,0 +1,51 @@
+runtime:
+  mode: local
+  show_progress: true
+
+slicing:
+  strategy: time
+  window_seconds: 480
+  overlap_seconds: 90
+
+llm:
+  provider: ollama
+  host: http://127.0.0.1:11434
+  model: qwen2.5:7b-instruct-q4_K_M
+  temperature: 0.6
+  max_tokens: 1536
+  monte_carlo_samples: 12
+  ensemble_models: qwen2.5:7b-instruct-q4_K_M,llama3.1:8b,deepseek-r1:7b,gemma3:4b-it-q4_K_M,mistral-nemo:12b,phi4:14b
+
+  # --- 稳定性/调度优化（针对 6x TITAN 本地服务器）---
+  timeout_seconds: 180
+  max_retries: 4
+  retry_backoff_base_seconds: 1.2
+  retry_jitter_seconds: 0.8
+  keep_alive: 45m
+  options:
+    num_gpu: 1
+    num_thread: 12
+    num_ctx: 6144
+
+evaluation:
+  # 四维并发，避免过高并发导致 Ollama 500；建议与显卡数匹配
+  dimension_concurrency: 4
+
+embedding:
+  provider: ollama
+  host: http://127.0.0.1:11434
+  model: nomic-embed-text
+
+uncertainty:
+  semantic_entropy_threshold: 0.8
+  score_entropy_threshold: 1.2
+  embedding_similarity_threshold: 0.75
+
+debate:
+  enabled: true
+  max_rounds: 2
+  entropy_drop: 0.2
+
+phase4_rag:
+  simulate_relabel_to_4: true
+  memory_path: outputs/phase4_expert_memory.json
