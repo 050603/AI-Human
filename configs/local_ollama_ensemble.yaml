@@ -21,8 +21,8 @@ embedding:
   model: nomic-embed-text
 
 uncertainty:
-  semantic_entropy_threshold: 1.5
-  score_entropy_threshold: 1.0
+  semantic_entropy_threshold: 0.8
+  score_entropy_threshold: 1.2
   embedding_similarity_threshold: 0.75
 
 debate:

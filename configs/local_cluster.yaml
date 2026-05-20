@@ -14,8 +14,8 @@ embedding:
   host: http://localhost:11434
   model: bge-m3
 uncertainty:
-  semantic_entropy_threshold: 1.2
-  score_entropy_threshold: 1.0
+  semantic_entropy_threshold: 0.8
+  score_entropy_threshold: 1.2
 cluster:
   gpus:
     gpu0: qwen2.5:7b-instruct-tp2
