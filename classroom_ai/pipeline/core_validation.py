@@ -198,20 +198,32 @@ def _evaluate_dimension(
         score_entropy_threshold=score_t,
     )
 
-    if decision == "human_review" and debate_cfg.get("enabled", True):
-        debate = run_debate(
-            high_score_reason=max(parsed_samples, key=lambda s: s.get("score", 0)).get("reason", ""),
-            low_score_reason=min(parsed_samples, key=lambda s: s.get("score", 99)).get("reason", ""),
-            max_rounds=int(debate_cfg.get("max_rounds", 2)),
-        )
-        if debate.converged:
-            semantic_entropy = max(0.0, semantic_entropy - float(debate_cfg.get("entropy_drop", 0.2)))
-            decision = route_decision(
-                semantic_entropy=semantic_entropy,
-                score_entropy=score_entropy,
-                semantic_entropy_threshold=sem_t,
-                score_entropy_threshold=score_t,
+    if decision == "human_review":
+        debate_enabled = bool(debate_cfg.get("enabled", True))
+        if debate_enabled:
+            debate = run_debate(
+                high_score_reason=max(parsed_samples, key=lambda s: s.get("score", 0)).get("reason", ""),
+                low_score_reason=min(parsed_samples, key=lambda s: s.get("score", 99)).get("reason", ""),
+                max_rounds=int(debate_cfg.get("max_rounds", 2)),
             )
+            if debate.converged:
+                updated_reasons = reasons.copy()
+                if updated_reasons:
+                    try:
+                        high_idx = max(range(len(parsed_samples)), key=lambda i: parsed_samples[i].get("score", 0))
+                        low_idx = min(range(len(parsed_samples)), key=lambda i: parsed_samples[i].get("score", 99))
+                        updated_reasons[high_idx] = debate.updated_reasons.get("high_score_model", updated_reasons[high_idx])
+                        updated_reasons[low_idx] = debate.updated_reasons.get("low_score_model", updated_reasons[low_idx])
+                    except ValueError:
+                        pass
+                score_entropy = shannon_entropy(scores) if len(scores) >= 2 else 999.0
+                semantic_entropy, labels, clusters = compute_semantic_entropy(updated_reasons, judge=semantic_judge)
+                decision = route_decision(
+                    semantic_entropy=semantic_entropy,
+                    score_entropy=score_entropy,
+                    semantic_entropy_threshold=sem_t,
+                    score_entropy_threshold=score_t,
+                )
 
     return {
         "score_distribution": dict(sorted(Counter(scores).items())),
