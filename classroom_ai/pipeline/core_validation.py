@@ -178,12 +178,15 @@ def _evaluate_dimension(
         if ensemble_models:
             model_name = ensemble_models[sample_i % len(ensemble_models)]
             active_llm = build_llm_from_factory({**llm_config, "model": model_name})
+        model_tag = ensemble_models[sample_i % len(ensemble_models)] if ensemble_models else str(llm_config.get("model", "?"))
+        print(f"  [{dimension_key}] sample {sample_i+1}/{sample_count} via {model_tag}", flush=True)
         response = active_llm.generate(
             messages=messages,
             temperature=float(llm_config.get("temperature", 0.7)),
             max_tokens=int(llm_config.get("max_tokens", 2048)),
         )
         parsed_samples.append(parse_evaluation_response(response.text))
+        print(f"  [{dimension_key}] sample {sample_i+1}/{sample_count} => score={parsed_samples[-1].get('score')}", flush=True)
 
     scores = [sample["score"] for sample in parsed_samples if sample["score"]]
     reasons = [sample["reason"] for sample in parsed_samples]

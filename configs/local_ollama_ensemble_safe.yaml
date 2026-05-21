@@ -2,18 +2,21 @@ runtime:
   mode: local
 
 slicing:
-  strategy: phase
-  window_seconds: 600
-  overlap_seconds: 120
+  strategy: time
+  window_seconds: 480
+  overlap_seconds: 90
 
 llm:
   provider: ollama
   host: http://localhost:11434
-  model: qwen3:8b
+  model: Qwen2.5:7b-instruct-q4_K_M
   temperature: 0.7
   max_tokens: 2048
   monte_carlo_samples: 10
-  ensemble_models: deepseek-r1:7b,llama3.1:8b
+  ensemble_models: deepseek-r1:7b,gemma3:4b-it-q4_K_M,llama3.1:8b
+
+evaluation:
+  dimension_concurrency: 1
 
 embedding:
   provider: ollama
